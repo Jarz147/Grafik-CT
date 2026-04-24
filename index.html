@@ -4,8 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ASSY 8 - CT MONITORING SYSTEM</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/4.3.7/mqtt.min.js"></script>
+    
     <script src="https://cdnjs.cloudflare.com/ajax/libs/chart.js/3.9.1/chart.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/4.3.7/mqtt.min.js"></script>
+
     <style>
         :root {
             --bg-color: #0d1117;
@@ -21,7 +23,7 @@
         body { 
             background: var(--bg-color); 
             color: var(--text-main); 
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            font-family: 'Segoe UI', sans-serif; 
             padding: 20px;
             margin: 0;
         }
@@ -36,15 +38,6 @@
             padding-bottom: 15px;
         }
 
-        h1 { 
-            margin: 0;
-            color: white; 
-            text-transform: uppercase;
-            letter-spacing: 2px;
-            font-size: 1.5rem;
-        }
-
-        /* Broker Indicator Style */
         .broker-status {
             padding: 8px 15px;
             border-radius: 20px;
@@ -61,8 +54,6 @@
             width: 10px;
             background-color: var(--neon-red);
             border-radius: 50%;
-            display: inline-block;
-            box-shadow: 0 0 8px var(--neon-red);
         }
 
         .grid { 
@@ -80,34 +71,12 @@
             padding: 20px;
         }
 
-        .title { 
-            color: var(--accent-color); 
-            font-weight: bold; 
-            font-size: 1.1rem;
-            border-bottom: 1px solid #333; 
-            padding-bottom: 10px; 
-            margin-bottom: 15px;
-            display: flex;
-            justify-content: space-between;
-        }
-
         .val { 
             font-size: 4rem; 
             color: var(--neon-green); 
             text-align: center; 
-            font-family: 'Courier New', monospace; 
+            font-family: monospace; 
             text-shadow: 0 0 15px rgba(57, 255, 20, 0.4);
-            margin: 10px 0;
-        }
-
-        .tskk { 
-            text-align: center; 
-            color: #8b949e; 
-            margin-bottom: 15px;
-            font-size: 0.95rem;
-            background: rgba(255,255,255,0.05);
-            padding: 5px;
-            border-radius: 6px;
         }
 
         canvas { width: 100% !important; max-height: 160px; }
@@ -123,79 +92,38 @@
         </div>
     </div>
 
-    <div class="grid" id="app">
-        <div class="card">
-            <div class="title">UNIT R1</div>
-            <div class="val" id="v-r1">0.00s</div>
-            <div class="tskk" id="t-r1">TSKK: 0.00s</div>
-            <canvas id="c-r1"></canvas>
-        </div>
-
-        <div class="card">
-            <div class="title">UNIT R2</div>
-            <div class="val" id="v-r2">0.00s</div>
-            <div class="tskk" id="t-r2">TSKK: 0.00s</div>
-            <canvas id="c-r2"></canvas>
-        </div>
-
-        <div class="card">
-            <div class="title">UNIT R3</div>
-            <div class="val" id="v-r3">0.00s</div>
-            <div class="tskk" id="t-r3">TSKK: 0.00s</div>
-            <canvas id="c-r3"></canvas>
-        </div>
-
-        <div class="card">
-            <div class="title">UNIT LEAKTEST</div>
-            <div class="val" id="v-lt">0.00s</div>
-            <div class="tskk" id="t-lt">TSKK: 0.00s</div>
-            <canvas id="c-lt"></canvas>
-        </div>
+    <div class="grid">
+        <div class="card"><div>UNIT R1</div><div class="val" id="v-r1">0.00s</div><canvas id="c-r1"></canvas></div>
+        <div class="card"><div>UNIT R2</div><div class="val" id="v-r2">0.00s</div><canvas id="c-r2"></canvas></div>
+        <div class="card"><div>UNIT R3</div><div class="val" id="v-r3">0.00s</div><canvas id="c-r3"></canvas></div>
+        <div class="card"><div>UNIT LEAKTEST</div><div class="val" id="v-lt">0.00s</div><canvas id="c-lt"></canvas></div>
     </div>
 
     <script>
+        // Gunakan WSS dan Kredensial Pajar
         const BROKER_URL = 'wss://x914fb68.ala.eu-central-1.emqxsl.com:8084/mqtt';
-        
         const options = {
-            clientId: 'web_monitor_' + Math.random().toString(16).substr(2, 8),
+            clientId: 'pajar_dash_' + Math.random().toString(16).substr(2, 5),
             username: 'Jarz147',
             password: 'Sankei2022!',
-            clean: true,
-            connectTimeout: 5000,
-            keepalive: 60
+            clean: true
         };
 
         const units = {
-            'ct-r1-a8': { v: 'v-r1', t: 't-r1', cid: 'c-r1', chart: null },
-            'ct-r2-a8': { v: 'v-r2', t: 't-r2', cid: 'c-r2', chart: null },
-            'ct-r3-a8': { v: 'v-r3', t: 't-r3', cid: 'c-r3', chart: null },
-            'ct-lt-a8': { v: 'v-lt', t: 't-lt', cid: 'c-lt', chart: null }
+            'ct-r1-a8': { v: 'v-r1', cid: 'c-r1', chart: null },
+            'ct-r2-a8': { v: 'v-r2', cid: 'c-r2', chart: null },
+            'ct-r3-a8': { v: 'v-r3', cid: 'c-r3', chart: null },
+            'ct-lt-a8': { v: 'v-lt', cid: 'c-lt', chart: null }
         };
 
-        const statusDot = document.getElementById('connection-dot');
-        const statusText = document.getElementById('connection-text');
-
-        function updateConnectionStatus(status) {
-            if(status === 'connected') {
-                statusDot.style.backgroundColor = 'var(--neon-green)';
-                statusDot.style.boxShadow = '0 0 8px var(--neon-green)';
-                statusText.innerText = 'BROKER: CONNECTED';
-                statusText.style.color = 'var(--neon-green)';
-            } else if (status === 'connecting') {
-                statusDot.style.backgroundColor = 'var(--neon-orange)';
-                statusDot.style.boxShadow = '0 0 8px var(--neon-orange)';
-                statusText.innerText = 'BROKER: CONNECTING...';
-                statusText.style.color = 'var(--neon-orange)';
-            } else {
-                statusDot.style.backgroundColor = 'var(--neon-red)';
-                statusDot.style.boxShadow = '0 0 8px var(--neon-red)';
-                statusText.innerText = 'BROKER: DISCONNECTED';
-                statusText.style.color = 'var(--neon-red)';
-            }
-        }
-
+        // Fungsi membuat chart dengan proteksi jika library belum siap
         function createChart(id) {
-            return new Chart(document.getElementById(id), {
+            if (typeof Chart === 'undefined') {
+                console.error("Chart.js belum dimuat!");
+                return null;
+            }
+            const ctx = document.getElementById(id).getContext('2d');
+            return new Chart(ctx, {
                 type: 'line',
                 data: {
                     labels: Array(20).fill(''),
@@ -213,49 +141,45 @@
                     maintainAspectRatio: false,
                     animation: false,
                     plugins: { legend: { display: false } },
-                    scales: {
-                        x: { display: false },
-                        y: { beginAtZero: true, grid: { color: '#222' }, ticks: { color: '#555' } }
-                    }
+                    scales: { x: { display: false }, y: { beginAtZero: true, grid: { color: '#222' } } }
                 }
             });
         }
 
-        Object.keys(units).forEach(key => units[key].chart = createChart(units[key].cid));
+        // Jalankan inisialisasi setelah DOM siap
+        window.onload = () => {
+            Object.keys(units).forEach(key => {
+                units[key].chart = createChart(units[key].cid);
+            });
 
-        updateConnectionStatus('connecting');
-        const client = mqtt.connect(BROKER_URL, options);
+            const client = mqtt.connect(BROKER_URL, options);
+            const statusDot = document.getElementById('connection-dot');
+            const statusText = document.getElementById('connection-text');
 
-        client.on('connect', () => {
-            updateConnectionStatus('connected');
-            Object.keys(units).forEach(topicId => client.subscribe(topicId + '/#'));
-        });
+            client.on('connect', () => {
+                statusDot.style.backgroundColor = 'var(--neon-green)';
+                statusText.innerText = 'BROKER: CONNECTED';
+                Object.keys(units).forEach(id => client.subscribe(id + '/#'));
+            });
 
-        client.on('message', (topic, payload) => {
-            const parts = topic.split('/');
-            const deviceId = parts[0];
-            const type = parts[1] ? parts[1].toLowerCase() : '';
-            const value = parseFloat(payload.toString());
+            client.on('message', (topic, payload) => {
+                const deviceId = topic.split('/')[0];
+                const value = parseFloat(payload.toString());
+                if (units[deviceId] && !isNaN(value)) {
+                    document.getElementById(units[deviceId].v).innerText = value.toFixed(2) + 's';
+                    if (units[deviceId].chart) {
+                        units[deviceId].chart.data.datasets[0].data.push(value);
+                        units[deviceId].chart.data.datasets[0].data.shift();
+                        units[deviceId].chart.update();
+                    }
+                }
+            });
 
-            if (!units[deviceId] || isNaN(value)) return;
-
-            if (['ct', 'ctl', 'ctr'].includes(type)) {
-                document.getElementById(units[deviceId].v).innerText = value.toFixed(2) + 's';
-                const chart = units[deviceId].chart;
-                chart.data.datasets[0].data.push(value);
-                chart.data.datasets[0].data.shift();
-                chart.update();
-            } else if (type === 'tskk') {
-                document.getElementById(units[deviceId].t).innerText = 'TSKK: ' + value.toFixed(2) + 's';
-            }
-        });
-
-        client.on('offline', () => updateConnectionStatus('disconnected'));
-        client.on('reconnect', () => updateConnectionStatus('connecting'));
-        client.on('error', (err) => {
-            console.error(err);
-            updateConnectionStatus('disconnected');
-        });
+            client.on('offline', () => {
+                statusDot.style.backgroundColor = 'var(--neon-red)';
+                statusText.innerText = 'BROKER: DISCONNECTED';
+            });
+        };
     </script>
 </body>
 </html>
