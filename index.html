@@ -196,13 +196,41 @@
             });
         });
 
+        function parsePayloadValue(rawPayload, typeHint) {
+            const raw = rawPayload.toString().trim();
+            const direct = parseFloat(raw);
+            if (!Number.isNaN(direct)) return direct;
+
+            try {
+                const parsed = JSON.parse(raw);
+                if (typeof parsed === 'number' && Number.isFinite(parsed)) return parsed;
+                if (parsed && typeof parsed === 'object') {
+                    const keysToTry = [];
+                    if (typeHint) keysToTry.push(typeHint);
+                    keysToTry.push('ct', 'ctl', 'ctr', 'cycle_time', 'value', 'tskk');
+
+                    for (const key of keysToTry) {
+                        if (parsed[key] !== undefined) {
+                            const candidate = parseFloat(parsed[key]);
+                            if (!Number.isNaN(candidate)) return candidate;
+                        }
+                    }
+                }
+            } catch (e) {
+                // Abaikan bila payload bukan JSON valid.
+            }
+
+            return NaN;
+        }
+
         client.on('message', (topic, payload) => {
             const parts = topic.split('/');
             const deviceId = parts[0];
-            const type = parts[1] ? parts[1].toLowerCase() : '';
-            const value = parseFloat(payload.toString());
+            // Jika topik hanya deviceId, anggap sebagai cycle time.
+            const type = parts[1] ? parts[1].toLowerCase() : 'ct';
+            const value = parsePayloadValue(payload, type);
 
-            if (!units[deviceId] || isNaN(value)) return;
+            if (!units[deviceId] || Number.isNaN(value)) return;
 
             // Update Cycle Time (ct, ctl, ctr)
             if (['ct', 'ctl', 'ctr'].includes(type)) {
