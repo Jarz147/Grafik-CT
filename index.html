@@ -15,6 +15,7 @@
             --accent-color: #00d2ff;
             --neon-green: #39ff14;
             --neon-red: #ff3131;
+            --neon-orange: #ffaa00;
         }
 
         body { 
@@ -25,13 +26,43 @@
             margin: 0;
         }
 
+        .header-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            max-width: 1400px;
+            margin: 0 auto 30px auto;
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 15px;
+        }
+
         h1 { 
-            text-align: center; 
+            margin: 0;
             color: white; 
-            margin-bottom: 30px; 
             text-transform: uppercase;
             letter-spacing: 2px;
-            text-shadow: 0 0 10px rgba(0,210,255,0.3);
+            font-size: 1.5rem;
+        }
+
+        /* Broker Indicator Style */
+        .broker-status {
+            padding: 8px 15px;
+            border-radius: 20px;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid var(--border-color);
+            font-size: 0.85rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        #connection-dot {
+            height: 10px;
+            width: 10px;
+            background-color: var(--neon-red);
+            border-radius: 50%;
+            display: inline-block;
+            box-shadow: 0 0 8px var(--neon-red);
         }
 
         .grid { 
@@ -47,8 +78,6 @@
             border: 1px solid var(--border-color); 
             border-radius: 15px; 
             padding: 20px;
-            position: relative;
-            overflow: hidden;
         }
 
         .title { 
@@ -60,13 +89,6 @@
             margin-bottom: 15px;
             display: flex;
             justify-content: space-between;
-            align-items: center;
-        }
-
-        .status-dot { 
-            color: var(--neon-red); 
-            font-size: 1.4rem;
-            transition: color 0.3s;
         }
 
         .val { 
@@ -93,32 +115,38 @@
 </head>
 <body>
 
-    <h1>CT MONITORING ASSY 8</h1>
+    <div class="header-container">
+        <h1>CT MONITORING ASSY 8</h1>
+        <div class="broker-status">
+            <span id="connection-dot"></span>
+            <span id="connection-text">BROKER: DISCONNECTED</span>
+        </div>
+    </div>
 
     <div class="grid" id="app">
         <div class="card">
-            <div class="title">UNIT R1 <span id="s-r1" class="status-dot">●</span></div>
+            <div class="title">UNIT R1</div>
             <div class="val" id="v-r1">0.00s</div>
             <div class="tskk" id="t-r1">TSKK: 0.00s</div>
             <canvas id="c-r1"></canvas>
         </div>
 
         <div class="card">
-            <div class="title">UNIT R2 <span id="s-r2" class="status-dot">●</span></div>
+            <div class="title">UNIT R2</div>
             <div class="val" id="v-r2">0.00s</div>
             <div class="tskk" id="t-r2">TSKK: 0.00s</div>
             <canvas id="c-r2"></canvas>
         </div>
 
         <div class="card">
-            <div class="title">UNIT R3 <span id="s-r3" class="status-dot">●</span></div>
+            <div class="title">UNIT R3</div>
             <div class="val" id="v-r3">0.00s</div>
             <div class="tskk" id="t-r3">TSKK: 0.00s</div>
             <canvas id="c-r3"></canvas>
         </div>
 
         <div class="card">
-            <div class="title">UNIT LEAKTEST <span id="s-lt" class="status-dot">●</span></div>
+            <div class="title">UNIT LEAKTEST</div>
             <div class="val" id="v-lt">0.00s</div>
             <div class="tskk" id="t-lt">TSKK: 0.00s</div>
             <canvas id="c-lt"></canvas>
@@ -126,7 +154,6 @@
     </div>
 
     <script>
-        // --- KONFIGURASI MQTT CLOUD ---
         const BROKER_URL = 'wss://x914fb68.ala.eu-central-1.emqxsl.com:8084/mqtt';
         
         const options = {
@@ -139,16 +166,36 @@
         };
 
         const units = {
-            'ct-r1-a8': { v: 'v-r1', t: 't-r1', s: 's-r1', cid: 'c-r1', chart: null },
-            'ct-r2-a8': { v: 'v-r2', t: 't-r2', s: 's-r2', cid: 'c-r2', chart: null },
-            'ct-r3-a8': { v: 'v-r3', t: 't-r3', s: 's-r3', cid: 'c-r3', chart: null },
-            'ct-lt-a8': { v: 'v-lt', t: 't-lt', s: 's-lt', cid: 'c-lt', chart: null }
+            'ct-r1-a8': { v: 'v-r1', t: 't-r1', cid: 'c-r1', chart: null },
+            'ct-r2-a8': { v: 'v-r2', t: 't-r2', cid: 'c-r2', chart: null },
+            'ct-r3-a8': { v: 'v-r3', t: 't-r3', cid: 'c-r3', chart: null },
+            'ct-lt-a8': { v: 'v-lt', t: 't-lt', cid: 'c-lt', chart: null }
         };
 
-        // --- INISIALISASI CHART ---
+        const statusDot = document.getElementById('connection-dot');
+        const statusText = document.getElementById('connection-text');
+
+        function updateConnectionStatus(status) {
+            if(status === 'connected') {
+                statusDot.style.backgroundColor = 'var(--neon-green)';
+                statusDot.style.boxShadow = '0 0 8px var(--neon-green)';
+                statusText.innerText = 'BROKER: CONNECTED';
+                statusText.style.color = 'var(--neon-green)';
+            } else if (status === 'connecting') {
+                statusDot.style.backgroundColor = 'var(--neon-orange)';
+                statusDot.style.boxShadow = '0 0 8px var(--neon-orange)';
+                statusText.innerText = 'BROKER: CONNECTING...';
+                statusText.style.color = 'var(--neon-orange)';
+            } else {
+                statusDot.style.backgroundColor = 'var(--neon-red)';
+                statusDot.style.boxShadow = '0 0 8px var(--neon-red)';
+                statusText.innerText = 'BROKER: DISCONNECTED';
+                statusText.style.color = 'var(--neon-red)';
+            }
+        }
+
         function createChart(id) {
-            const ctx = document.getElementById(id).getContext('2d');
-            return new Chart(ctx, {
+            return new Chart(document.getElementById(id), {
                 type: 'line',
                 data: {
                     labels: Array(20).fill(''),
@@ -158,8 +205,7 @@
                         backgroundColor: 'rgba(0, 210, 255, 0.1)',
                         fill: true,
                         tension: 0.4,
-                        pointRadius: 0,
-                        borderWidth: 2
+                        pointRadius: 0
                     }]
                 },
                 options: {
@@ -169,93 +215,46 @@
                     plugins: { legend: { display: false } },
                     scales: {
                         x: { display: false },
-                        y: { 
-                            beginAtZero: true, 
-                            grid: { color: '#222' }, 
-                            ticks: { color: '#555', font: { size: 10 } } 
-                        }
+                        y: { beginAtZero: true, grid: { color: '#222' }, ticks: { color: '#555' } }
                     }
                 }
             });
         }
 
-        // Jalankan Chart
-        Object.keys(units).forEach(key => {
-            units[key].chart = createChart(units[key].cid);
-        });
+        Object.keys(units).forEach(key => units[key].chart = createChart(units[key].cid));
 
-        // --- KONEKSI MQTT ---
+        updateConnectionStatus('connecting');
         const client = mqtt.connect(BROKER_URL, options);
 
         client.on('connect', () => {
-            console.log("✅ Terhubung ke EMQX Cloud via WSS");
-            Object.keys(units).forEach(topicId => {
-                client.subscribe(topicId + '/#');
-                // Ubah indikator jadi hijau
-                document.getElementById(units[topicId].s).style.color = '#39ff14';
-            });
+            updateConnectionStatus('connected');
+            Object.keys(units).forEach(topicId => client.subscribe(topicId + '/#'));
         });
-
-        function parsePayloadValue(rawPayload, typeHint) {
-            const raw = rawPayload.toString().trim();
-            const direct = parseFloat(raw);
-            if (!Number.isNaN(direct)) return direct;
-
-            try {
-                const parsed = JSON.parse(raw);
-                if (typeof parsed === 'number' && Number.isFinite(parsed)) return parsed;
-                if (parsed && typeof parsed === 'object') {
-                    const keysToTry = [];
-                    if (typeHint) keysToTry.push(typeHint);
-                    keysToTry.push('ct', 'ctl', 'ctr', 'cycle_time', 'value', 'tskk');
-
-                    for (const key of keysToTry) {
-                        if (parsed[key] !== undefined) {
-                            const candidate = parseFloat(parsed[key]);
-                            if (!Number.isNaN(candidate)) return candidate;
-                        }
-                    }
-                }
-            } catch (e) {
-                // Abaikan bila payload bukan JSON valid.
-            }
-
-            return NaN;
-        }
 
         client.on('message', (topic, payload) => {
             const parts = topic.split('/');
             const deviceId = parts[0];
-            // Jika topik hanya deviceId, anggap sebagai cycle time.
-            const type = parts[1] ? parts[1].toLowerCase() : 'ct';
-            const value = parsePayloadValue(payload, type);
+            const type = parts[1] ? parts[1].toLowerCase() : '';
+            const value = parseFloat(payload.toString());
 
-            if (!units[deviceId] || Number.isNaN(value)) return;
+            if (!units[deviceId] || isNaN(value)) return;
 
-            // Update Cycle Time (ct, ctl, ctr)
             if (['ct', 'ctl', 'ctr'].includes(type)) {
                 document.getElementById(units[deviceId].v).innerText = value.toFixed(2) + 's';
-                
                 const chart = units[deviceId].chart;
                 chart.data.datasets[0].data.push(value);
                 chart.data.datasets[0].data.shift();
                 chart.update();
-            } 
-            // Update TSKK
-            else if (type === 'tskk') {
+            } else if (type === 'tskk') {
                 document.getElementById(units[deviceId].t).innerText = 'TSKK: ' + value.toFixed(2) + 's';
             }
         });
 
+        client.on('offline', () => updateConnectionStatus('disconnected'));
+        client.on('reconnect', () => updateConnectionStatus('connecting'));
         client.on('error', (err) => {
-            console.error("❌ MQTT Error: ", err);
-        });
-
-        client.on('offline', () => {
-            console.warn("⚠️ Client Offline. Mencoba menyambung kembali...");
-            Object.keys(units).forEach(id => {
-                document.getElementById(units[id].s).style.color = '#ff3131';
-            });
+            console.error(err);
+            updateConnectionStatus('disconnected');
         });
     </script>
 </body>
