@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ASSY 8 - REALTIME CT MONITORING</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/4.3.7/mqtt.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chart.js/3.9.1/chart.min.js"></script>
+    <style>
+        :root {
+            --bg-color: #0d1117;
+            --card-bg: #161b22;
+            --border-color: #30363d;
+            --text-main: #c9d1d9;
+            --accent-color: #00d2ff;
+            --neon-green: #39ff14;
+        }
+
+        body { 
+            background: var(--bg-color); 
+            color: var(--text-main); 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
+            padding: 20px;
+            margin: 0;
+        }
+
+        h1 { text-align: center; letter-spacing: 2px; color: white; margin-bottom: 30px; }
+
+        .grid { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); 
+            gap: 20px; 
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .card { 
+            background: var(--card-bg); 
+            border: 1px solid var(--border-color); 
+            border-radius: 12px; 
+            padding: 20px;
+            transition: transform 0.2s;
+        }
+
+        .card:hover { transform: translateY(-5px); }
+
+        .title { 
+            color: var(--accent-color); 
+            font-weight: bold; 
+            font-size: 1.1rem;
+            border-bottom: 1px solid #333; 
+            padding-bottom: 10px; 
+            margin-bottom: 15px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .status-dot { color: #555; } /* Default offline */
+
+        .val { 
+            font-size: 3.5rem; 
+            color: var(--neon-green); 
+            text-align: center; 
+            font-family: 'Courier New', monospace; 
+            text-shadow: 0 0 15px rgba(57, 255, 20, 0.3);
+            margin: 10px 0;
+        }
+
+        .tskk { 
+            text-align: center; 
+            color: #8b949e; 
+            margin-bottom: 15px;
+            font-size: 0.9rem;
+            background: rgba(255,255,255,0.05);
+            padding: 5px;
+            border-radius: 4px;
+        }
+
+        canvas { width: 100% !important; max-height: 160px; }
+    </style>
+</head>
+<body>
+
+    <h1>CT MONITORING ASSY 8</h1>
+
+    <div class="grid" id="app">
+        <div class="card">
+            <div class="title">UNIT R1 <span id="s-r1" class="status-dot">●</span></div>
+            <div class="val" id="v-r1">0.00s</div>
+            <div class="tskk" id="t-r1">TSKK: 0.00s</div>
+            <canvas id="c-r1"></canvas>
+        </div>
+
+        <div class="card">
+            <div class="title">UNIT R2 <span id="s-r2" class="status-dot">●</span></div>
+            <div class="val" id="v-r2">0.00s</div>
+            <div class="tskk" id="t-r2">TSKK: 0.00s</div>
+            <canvas id="c-r2"></canvas>
+        </div>
+
+        <div class="card">
+            <div class="title">UNIT R3 <span id="s-r3" class="status-dot">●</span></div>
+            <div class="val" id="v-r3">0.00s</div>
+            <div class="tskk" id="t-r3">TSKK: 0.00s</div>
+            <canvas id="c-r3"></canvas>
+        </div>
+
+        <div class="card">
+            <div class="title">UNIT LEAKTEST <span id="s-lt" class="status-dot">●</span></div>
+            <div class="val" id="v-lt">0.00s</div>
+            <div class="tskk" id="t-lt">TSKK: 0.00s</div>
+            <canvas id="c-lt"></canvas>
+        </div>
+    </div>
+
+    <script>
+        // --- KONFIGURASI ---
+        const BROKER_IP = '192.168.210.241';
+        const BROKER_PORT = 8083; // Port WebSocket EMQX
+        
+        const client = mqtt.connect(`ws://${BROKER_IP}:${BROKER_PORT}/mqtt`);
+
+        // Mapping Device ID ke Element HTML
+        const units = {
+            'ct-r1-a8': { v: 'v-r1', t: 't-r1', s: 's-r1', cid: 'c-r1', chart: null },
+            'ct-r2-a8': { v: 'v-r2', t: 't-r2', s: 's-r2', cid: 'c-r2', chart: null },
+            'ct-r3-a8': { v: 'v-r3', t: 't-r3', s: 's-r3', cid: 'c-r3', chart: null },
+            'ct-lt-a8': { v: 'v-lt', t: 't-lt', s: 's-lt', cid: 'c-lt', chart: null }
+        };
+
+        // --- FUNGSI CHART ---
+        function initChart(canvasId) {
+            const ctx = document.getElementById(canvasId).getContext('2d');
+            return new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: Array(20).fill(''),
+                    datasets: [{
+                        data: Array(20).fill(null),
+                        borderColor: '#00d2ff',
+                        borderWidth: 2,
+                        backgroundColor: 'rgba(0, 210, 255, 0.1)',
+                        fill: true,
+                        tension: 0.4,
+                        pointRadius: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { display: false },
+                        y: { 
+                            beginAtZero: true,
+                            grid: { color: '#222' },
+                            ticks: { color: '#555', font: { size: 10 } }
+                        }
+                    }
+                }
+            });
+        }
+
+        // --- UPDATE DATA ---
+        function updateUI(deviceId, value) {
+            const unit = units[deviceId];
+            if (!unit) return;
+
+            // Update Text
+            document.getElementById(unit.v).innerText = value.toFixed(2) + 's';
+
+            // Update Chart
+            const chart = unit.chart;
+            chart.data.datasets[0].data.push(value);
+            chart.data.datasets[0].data.shift();
+            chart.update();
+        }
+
+        // --- INISIALISASI ---
+        Object.keys(units).forEach(key => {
+            units[key].chart = initChart(units[key].cid);
+        });
+
+        // --- MQTT LOGIC ---
+        client.on('connect', () => {
+            console.log("Connected to MQTT Broker");
+            Object.keys(units).forEach(topicId => {
+                client.subscribe(topicId + '/#');
+                // Set dot ke hijau saat terkoneksi
+                document.getElementById(units[topicId].s).style.color = '#39ff14';
+            });
+        });
+
+        client.on('message', (topic, message) => {
+            const parts = topic.split('/');
+            const deviceId = parts[0];
+            const type = parts[1];
+            const val = parseFloat(message.toString());
+
+            if (isNaN(val)) return;
+
+            // Handle Cycle Time (ct, ctl, ctr)
+            if (['ct', 'ctl', 'ctr'].includes(type)) {
+                updateUI(deviceId, val);
+            } 
+            // Handle TSKK
+            else if (type === 'tskk') {
+                document.getElementById(units[deviceId].t).innerText = `TSKK: ${val.toFixed(2)}s`;
+            }
+        });
+
+        client.on('error', (err) => {
+            console.error("MQTT Error: ", err);
+        });
+
+        // --- LOAD HISTORY (NODE-RED PAYLOAD) ---
+        // Jika file ini dijalankan di luar Node-RED, blok ini akan diabaikan
+        try {
+            const historyData = {{{payload}}}; 
+            if (Array.isArray(historyData)) {
+                historyData.forEach(item => {
+                    if (units[item.device] && item.value) {
+                        updateUI(item.device, parseFloat(item.value));
+                    }
+                });
+            }
+        } catch (e) {
+            console.log("Waiting for realtime data...");
+        }
+
+    </script>
+</body>
+</html>
