@@ -79,7 +79,16 @@
             text-shadow: 0 0 15px rgba(57, 255, 20, 0.4);
         }
 
-        canvas { width: 100% !important; max-height: 160px; }
+        .chart-wrap {
+            height: 160px;
+            margin-top: 8px;
+        }
+
+        canvas {
+            width: 100% !important;
+            height: 100% !important;
+            display: block;
+        }
     </style>
 </head>
 <body>
@@ -93,10 +102,10 @@
     </div>
 
     <div class="grid">
-        <div class="card"><div>UNIT R1</div><div class="val" id="v-r1">0.00s</div><canvas id="c-r1"></canvas></div>
-        <div class="card"><div>UNIT R2</div><div class="val" id="v-r2">0.00s</div><canvas id="c-r2"></canvas></div>
-        <div class="card"><div>UNIT R3</div><div class="val" id="v-r3">0.00s</div><canvas id="c-r3"></canvas></div>
-        <div class="card"><div>UNIT LEAKTEST</div><div class="val" id="v-lt">0.00s</div><canvas id="c-lt"></canvas></div>
+        <div class="card"><div>UNIT R1</div><div class="val" id="v-r1">0.00s</div><div class="chart-wrap"><canvas id="c-r1"></canvas></div></div>
+        <div class="card"><div>UNIT R2</div><div class="val" id="v-r2">0.00s</div><div class="chart-wrap"><canvas id="c-r2"></canvas></div></div>
+        <div class="card"><div>UNIT R3</div><div class="val" id="v-r3">0.00s</div><div class="chart-wrap"><canvas id="c-r3"></canvas></div></div>
+        <div class="card"><div>UNIT LEAKTEST</div><div class="val" id="v-lt">0.00s</div><div class="chart-wrap"><canvas id="c-lt"></canvas></div></div>
     </div>
 
     <script>
@@ -128,7 +137,7 @@
                 data: {
                     labels: Array(20).fill(''),
                     datasets: [{
-                        data: Array(20).fill(null),
+                        data: Array(20).fill(0),
                         borderColor: '#00d2ff',
                         backgroundColor: 'rgba(0, 210, 255, 0.1)',
                         fill: true,
@@ -144,6 +153,28 @@
                     scales: { x: { display: false }, y: { beginAtZero: true, grid: { color: '#222' } } }
                 }
             });
+        }
+
+        function parsePayloadValue(rawPayload) {
+            const raw = rawPayload.toString().trim();
+            const direct = parseFloat(raw);
+            if (!Number.isNaN(direct)) return direct;
+            try {
+                const parsed = JSON.parse(raw);
+                if (typeof parsed === 'number' && Number.isFinite(parsed)) return parsed;
+                if (parsed && typeof parsed === 'object') {
+                    const keys = ['ct', 'ctl', 'ctr', 'cycle_time', 'value'];
+                    for (const key of keys) {
+                        if (parsed[key] !== undefined) {
+                            const val = parseFloat(parsed[key]);
+                            if (!Number.isNaN(val)) return val;
+                        }
+                    }
+                }
+            } catch (e) {
+                // Abaikan payload non-JSON.
+            }
+            return NaN;
         }
 
         // Jalankan inisialisasi setelah DOM siap
@@ -164,8 +195,8 @@
 
             client.on('message', (topic, payload) => {
                 const deviceId = topic.split('/')[0];
-                const value = parseFloat(payload.toString());
-                if (units[deviceId] && !isNaN(value)) {
+                const value = parsePayloadValue(payload);
+                if (units[deviceId] && !Number.isNaN(value)) {
                     document.getElementById(units[deviceId].v).innerText = value.toFixed(2) + 's';
                     if (units[deviceId].chart) {
                         units[deviceId].chart.data.datasets[0].data.push(value);
